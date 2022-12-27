@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup as bs
 import lxml
 import csv
 import os.path
+from datetime import datetime as dt
 
 class ServerInterface:
     """
@@ -60,7 +61,7 @@ class ServerInterface:
         """
         self.err(traceback.extract_stack())
 
-    def create_dict(self, id=0, agregator='', server_name='', raiting='', cite='', vk='', votes_m='', votes_d='', players_o='', players_a='', uptime='', admin=''):
+    def create_dict(self, id=0, agregator='', server_name='', raiting='', cite='', vk='', votes_m='', votes_d='', players_o='', players_a='', uptime='', admin='', timestamp=0):
         """
             Генерируем словарик, ПОКА ЧЕРНОВИК
         :return:
@@ -76,7 +77,9 @@ class ServerInterface:
         'players_online': players_o,
         'players_all': players_a,
         'uptime': uptime,
-        'admin': admin}
+        'admin': admin,
+        'timestamp': timestamp
+        }
 
 
     def print_data(self):
@@ -107,8 +110,7 @@ class ServerInterface:
 
 class Agregator_mctop(ServerInterface):
     def __init__(self):
-        super().__init__(agregator_main='https://mctop.su/', csv_filename='mctop.csv',
-                         csv_header = "id, agregator, server_name, raiting, cite, vk, votes_mounth, votes_day, players_online, players_all, uptime, admin")
+        super().__init__(agregator_main='https://mctop.su/', csv_filename='mctop.csv', csv_header = self.create_dict().keys())
         self.csv_file_exists = os.path.exists(self.csv_filename)
 
     def get_agrigator_pagination(self):
@@ -132,7 +134,6 @@ class Agregator_mctop(ServerInterface):
             servers_div = main_div.find_all("article", class_="col-xs-12 user-pr-card")
             for j in servers_div:
                 result.append([y, self.agregator_main[:-1] + j.find("a").attrs['href']])
-                pass
         return result
 
     def process_server(self, sertver_url: str, id = 0, server_name='', raiting='', cite='', vk='', votes_m='',
@@ -189,19 +190,25 @@ class Agregator_mctop(ServerInterface):
         ))
 
     def start(self):
+        current_time = int(round(dt.now().timestamp()))
         print("Agregator <mctop> started!")
         pagination = self.get_agrigator_pagination()
         print("pagination.. OK!")
         links = mctop.get_all_servers_url(pagination)
         print("server links.. OK!")
         with open(self.csv_filename, 'a', encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=self.csv_header.split(", "))
+            writer = csv.DictWriter(f, fieldnames=self.csv_header)
             if not self.csv_file_exists:
                 writer.writeheader()
             for i, link in enumerate(links):
                 data = self.process_server(id=i, sertver_url=link[1])
                 print(f"processing #{i}, <{data['server_name']}>.. OK!")
+                data['timestamp'] = current_time
                 writer.writerow(data)
+                #УБЕРИ ЭТО ДЛЯ ОТЛАДКИ
+                if i >= 10:
+                    break
+                #=====================
 
 
 
