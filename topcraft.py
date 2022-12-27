@@ -5,69 +5,73 @@ import csv
 import os.path
 from datetime import datetime as dt
 
-class Agregator_mctop(ServerInterface):
+class Agregator_topcraft(ServerInterface):
     def __init__(self):
-        self.agregator = "MCTOP"
-        super().__init__(agregator_main='https://mctop.su/', csv_filename=f"{self.agregator}.csv", csv_header = self.create_dict().keys())
+        self.agregator = "TOPCRAFT"
+        super().__init__(agregator_main='https://topcraft.ru/', csv_filename=f"{self.agregator}.csv",
+                         csv_header=self.create_dict().keys())
         self.csv_file_exists = os.path.exists(self.csv_filename)
 
     def get_agrigator_pagination(self):
         links = [self.agregator_main]
         main = self.http_get(self.agregator_main)
         soup = bs(main, "lxml")
-        pagination_wrap = soup.find("nav", class_="pagination-wrap")
-        pagination_wrap_li = pagination_wrap.findAll("li")
-        for i in pagination_wrap_li[2:-1]:
-            """мы берём не весь список, а срез, специфика разметки сайта"""
-            url = i.find("a").attrs['href']
-            links.append(self.agregator_main[:-1] + url)
+        pagination_main = soup.find("ul", {"class": "pagination"})
+        lis = pagination_main.findAll('li')
+        for i in lis[2:-1]:
+            href = i.find('a')['href']
+            links.append(self.agregator_main + href[1:])
         return links
+
 
     def get_all_servers_url(self, links: list):
         result = []
         for y, i in enumerate(links):
             html = self.http_get(i)
             soup = bs(html, "lxml")
-            main_div = soup.find("div", class_="container container-wn")
+            main_div = soup.find("section", class_="server-rt-cards")
             servers_div = main_div.find_all("article", class_="col-xs-12 user-pr-card")
             for j in servers_div:
                 result.append([y, self.agregator_main[:-1] + j.find("a").attrs['href']])
                 y += 1
+            #####################################
+            if y>5:
+                break##########УБЕРИ КОСТЫЛЬ
+            ######################################
         return result
 
-    def process_server(self, sertver_url: str, id = 0, server_name='', raiting='', cite='', vk='', votes_m='',
+    def process_server(self, sertver_url: str, id=0, server_name='', raiting='', cite='', vk='', votes_m='',
                        votes_d='', players_o='', players_a='', uptime='', admin=''):
         html = self.http_get(sertver_url)
-        html = self.http_get(sertver_url)
         soup = bs(html, 'lxml')
-        main = soup.find('section', {'role': 'main'})
-        server_name = main.find("header", {"class": "project-header"}).find("h1").text
-        raiting = main.find("span", {"class": "project-rating__qty"}).text
-        tp = soup.find("div", {"class": "tab-pane active"})
-        rows = tp.find("table", {"class": "table table-striped project-info-table"}).findAll("td")
-        for x, y in enumerate(rows):
+        header = soup.find('header', {'class': 'project-header'})
+        server_name = header.find('h1').text
+        raiting = header.find('span', {'class': 'project-rating__qty'}).text
+        main_table = soup.find('table', {'class': 'table project-info-table'})
+        rows = main_table.find_all('td')
+        for x, i in enumerate(rows):
+            if "Сайт" in str(i):
+                cite = rows[x+1].text
 
-            # print(x,y)
-            if 'Сайт проекта' in str(y):
-                cite = rows[x + 1].find("a")['href']
-            if 'Группа Вконтакте' in str(y):
-                vk = rows[x + 1].find("a")['href']
-            if 'Голосов' in str(y):
-                tmp = rows[x + 1].text
-                tmp = tmp.replace('за месяц ', '')
-                tmp = tmp.replace(' сегодня ', '')
-                tmp = tmp.split(',')
-                votes_m = tmp[0].strip()
-                votes_d = tmp[1].strip()
-            if 'Игроки он-лайн' in str(y):
-                tmp = rows[x + 1].text
-                players_o = tmp.strip().split("/")[0]
-                players_a = tmp.strip().split("/")[1]
-            if 'Uptime' in str(y):
-                uptime = rows[x + 1].text.strip()
+            if "Вконтакте" in str(i):
+                vk = rows[x+1].text
 
-            if 'Администратор' in str(y):
-                admin = rows[x + 1].text.strip()
+            if "Голосов" in str(i):
+                v = rows[x+1].text.split(',')
+                votes_m = v[0].replace('за месяц ', '').strip()
+                votes_d = v[1].replace(' сегодня ','').strip()
+
+            if "Игроки" in str(i):
+                g = rows[x+1].text.split('/')
+                players_o = g[0].strip()
+                players_a = g[1].strip()
+
+            if "Uptime" in str(i):
+                uptime = rows[x+1].text
+
+            if "Администратор" in str(i):
+                admin = rows[x+1].text
+
         return(self.create_dict(
             id=id,
             agregator=self.agregator,
